@@ -7,6 +7,9 @@ import net.dv8tion.jda.api.entities.User;
 import net.dv8tion.jda.api.events.interaction.command.SlashCommandInteractionEvent;
 import net.dv8tion.jda.api.events.message.MessageReceivedEvent;
 import net.dv8tion.jda.api.hooks.ListenerAdapter;
+import net.dv8tion.jda.api.interactions.commands.build.CommandData;
+import net.dv8tion.jda.api.interactions.commands.build.Commands;
+import net.dv8tion.jda.api.requests.restaction.CommandListUpdateAction;
 import org.apache.commons.text.similarity.LevenshteinDistance;
 
 import java.util.ArrayList;
@@ -27,6 +30,14 @@ public class SpamFilterListener extends ListenerAdapter {
     public SpamFilterListener () {
     }
 
+    public void registerCommand() {
+        CommandListUpdateAction commands = Bot.getJda().updateCommands();
+        commands.addCommands(Commands.slash("spamfiltertoggle", "Toggle the spam filter system."));
+        commands.queue(Runnable -> System.out.println("Registered " + this.getClass().getSimpleName()), Throwable::printStackTrace);
+
+        // This registers too slow, so for testing purposes, use !spamfiltertoggle instead.
+    }
+
     @Override
     public void onSlashCommandInteraction(SlashCommandInteractionEvent event) {
         Guild guild = event.getGuild();
@@ -41,6 +52,15 @@ public class SpamFilterListener extends ListenerAdapter {
 
     @Override
     public void onMessageReceived(MessageReceivedEvent event) {
+        if (event.getAuthor().isBot())
+            return;
+        if (event.getMessage().getContentStripped().equalsIgnoreCase("!spamfiltertoggle")) {
+            toggle = !toggle;
+            event.getMessage().reply("Spam Filter has been " + (toggle ? "enabled" : "disabled") + ".").queue();
+            return;
+        }
+        if (!toggle)
+            return;
         queue(event.getMessage(), event.getAuthor());
     }
 

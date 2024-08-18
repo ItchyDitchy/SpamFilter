@@ -13,9 +13,11 @@ public class Bot {
 
     public Bot() {
         if (System.getenv("TOKEN") == null) return;
+        SpamFilterListener spamFilterListener = new SpamFilterListener();
         jda = JDABuilder.create(System.getenv("TOKEN"), Arrays.asList(GatewayIntent.values()))
-                .addEventListeners(new SpamFilterListener())
+                .addEventListeners(spamFilterListener)
                 .build();
+        spamFilterListener.registerCommand();
     }
 
     public static Bot getInstance() {
