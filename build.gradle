@@ -1,0 +1,127 @@
+plugins {
+    id 'java'
+    id 'com.github.johnrengelman.shadow' version '7.1.2'
+}
+
+group = 'me.itchyditchy'
+version = new Date().format('yyyy.MM.dd')
+
+project.ext {
+    archiveFolder = file("archive/")
+    targetFolder = file("target/")
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        name = "sonatype"
+        url = "https://oss.sonatype.org/content/groups/public/"
+    }
+    maven {
+        url 'https://m2.dv8tion.net/releases'
+    }
+    maven { url 'https://repo.bg-software.com/repository/common/' }
+}
+
+dependencies {
+    // https://mvnrepository.com/artifact/net.dv8tion/JDA
+    implementation group: 'net.dv8tion', name: 'JDA', version: '5.0.0-beta.12'
+
+    // https://mvnrepository.com/artifact/org.projectlombok/lombok
+    compileOnly group: 'org.projectlombok', name: 'lombok', version: '1.18.28'
+    annotationProcessor 'org.projectlombok:lombok:1.18.28'
+
+    implementation 'org.apache.commons:commons-text:1.12.0'
+}
+
+def targetJavaVersion = 17
+
+java {
+    def javaVersion = JavaVersion.toVersion(targetJavaVersion)
+    sourceCompatibility = javaVersion
+    targetCompatibility = javaVersion
+    if (JavaVersion.current() < javaVersion) {
+        toolchain.languageVersion = JavaLanguageVersion.of(targetJavaVersion)
+    }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    if (targetJavaVersion >= 10 || JavaVersion.current().isJava10Compatible()) {
+        options.release = targetJavaVersion
+    }
+}
+
+sourceSets {
+    main {
+        java {
+            srcDirs = ['src/main/java']
+        }
+    }
+}
+
+jar {
+    manifest {
+        attributes 'Main-Class': 'me.itchyditchy.spamfilter.Main'
+    }
+}
+
+shadowJar {
+//    mergeServiceFiles false
+    manifest {
+        attributes 'Main-Class': 'me.itchyditchy.spamfilter.Main'
+    }
+    exclude '**/Users/**'
+    archiveFileName = rootProject.name + '.jar'
+
+    exclude '*exclude.jar'
+
+    destinationDirectory = rootProject.targetFolder
+    from sourceSets.getByName("main").output
+    configurations = [project.configurations.getByName("runtimeClasspath")]
+}
+
+task withVersion(type: Copy, dependsOn: shadowJar) {
+    from shadowJar
+    into rootProject.targetFolder
+    rename(rootProject.name + ".jar", rootProject.name + "-" + version + ".jar")
+}
+
+task withBuildVersion(type: Copy, dependsOn: shadowJar) {
+    def buildVersion = 1
+    rootProject.targetFolder.listFiles().each { file ->
+        if (file.name.contains('-b') && !file.name.contains(version)) {
+            file.delete()
+        }
+        if (file.name.startsWith(project.name + '-' + version + '-b')) {
+            buildVersion++
+        }
+    }
+    from shadowJar
+    into rootProject.targetFolder
+    rename(rootProject.name + ".jar", rootProject.name + '-' + version + '-b' + buildVersion + '.jar')
+}
+
+gradle.projectsEvaluated {
+    tasks.withType(JavaCompile) {
+        options.compilerArgs << '-Xlint:-deprecation'
+    }
+}
+
+clean {
+}
+
+build {
+//    dependsOn withBuildVersion
+//    dependsOn withVersion
+    dependsOn shadowJar
+    dependsOn jar
+    dependsOn clean
+}
+
+//task stage(dependsOn: ['build', 'shadowJar', 'shadowJarBuild', 'shadowJarVersion'])
+
+clean.shouldRunAfter withBuildVersion
+withBuildVersion.shouldRunAfter withVersion
+withVersion.shouldRunAfter shadowJar
+shadowJar.shouldRunAfter jar
+jar.shouldRunAfter build
